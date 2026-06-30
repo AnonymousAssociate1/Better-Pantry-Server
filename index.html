@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Better Pantry</title>
+  
+  <!-- PWA Support -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Better Pantry">
+  <link rel="apple-touch-icon" href="icon.png">
+  
+  <!-- CSS -->
+  <link rel="stylesheet" href="index.css">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- ==================== SETUP SERVER SCREEN ==================== -->
+  <div id="setup-screen" class="auth-container hidden">
+    <div class="auth-card">
+      <div class="auth-header">
+        <img src="icon.png" class="auth-logo" alt="Better Pantry Logo">
+        <h2>Setup Better Pantry</h2>
+        <p>Enter the address of your home Raspberry Pi server.</p>
+      </div>
+      <div class="form-group">
+        <label for="server-address-input">Server URL</label>
+        <input type="url" id="server-address-input" placeholder="e.g. http://192.168.1.100:5050" required>
+        <p class="input-hint">Leave blank to use the current website origin.</p>
+      </div>
+      <button id="save-server-btn" class="btn primary-btn">Save & Proceed</button>
+    </div>
+  </div>
+
+  <!-- ==================== LOGIN SCREEN ==================== -->
+  <div id="login-screen" class="auth-container hidden">
+    <div class="auth-card">
+      <div class="auth-header">
+        <img src="icon.png" class="auth-logo" alt="Better Pantry Logo">
+        <h2>Log In</h2>
+        <p>Authenticate with your Microsoft Employee account.</p>
+      </div>
+      
+      <!-- Method A: Direct Login (User request) -->
+      <div id="direct-login-form">
+        <div class="form-group">
+          <label for="login-username">Employee Email / ID</label>
+          <input type="email" id="login-username" placeholder="username@panerabread.com" required>
+        </div>
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" placeholder="••••••••" required>
+        </div>
+        <button id="direct-login-btn" class="btn primary-btn">Sign In Directly</button>
+        <div id="direct-login-error" class="error-text hidden"></div>
+      </div>
+      
+      <div class="divider-text">or authenticate via browser</div>
+      
+      <!-- Method B: Interactive PKCE Login (Fallback) -->
+      <div id="interactive-login-form">
+        <p class="login-instruction">
+          If direct login fails (MFA/Security policies), use interactive login:
+        </p>
+        <ol class="login-steps">
+          <li>Click the button below to authorize on Microsoft.</li>
+          <li>Once logged in, your browser will try to redirect and show an error (that is normal!).</li>
+          <li>Copy the URL from the browser address bar (starts with <code>pantry://login</code>) and paste it below.</li>
+        </ol>
+        
+        <button id="get-auth-url-btn" class="btn secondary-btn">1. Open Microsoft Login</button>
+        
+        <div class="form-group margin-top-15">
+          <label for="callback-url-input">2. Paste Redirect URL</label>
+          <input type="text" id="callback-url-input" placeholder="pantry://login?code=...">
+        </div>
+        <button id="submit-code-btn" class="btn primary-btn">Complete Login</button>
+        <div id="login-error" class="error-text hidden"></div>
+      </div>
+      
+      <div class="change-server-link-container">
+        <a href="#" id="change-server-link">Configure Server Address</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MAIN APPLICATION CONTAINER ==================== -->
+  <div id="app-container" class="hidden">
+    
+    <!-- Top Action Bar Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <!-- Back button (for secondary sub-views) -->
+        <button id="header-back-btn" class="icon-btn hidden">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z"/></svg>
+        </button>
+        <h1 id="header-title">HOME</h1>
+      </div>
+      <div class="header-right" id="header-actions">
+        <!-- Dynamically populated buttons -->
+      </div>
+    </header>
+
+    <!-- Main Content Tabs -->
+    <main class="app-content">
+
+      <!-- ==================== TAB: HOME ==================== -->
+      <section id="tab-home" class="tab-view active">
+        <!-- Dynamic Calendar Grid Widget -->
+        <div class="card calendar-card">
+          <div id="calendar-date-range" class="calendar-range-title">Wednesday, Jun 17 - Tuesday, Jul 14</div>
+          <div class="calendar-weekday-headers">
+            <div>W</div><div>T</div><div>F</div><div>S</div><div>S</div><div>M</div><div>T</div>
+          </div>
+          <div id="calendar-grid" class="calendar-grid">
+            <!-- 28 days populated in JS -->
+          </div>
+        </div>
+
+        <!-- Collapsible: Your Shifts -->
+        <div class="collapsible-section" id="your-shifts-section">
+          <div class="section-header" id="your-shifts-toggle">
+            <h3>YOUR SHIFTS</h3>
+            <div class="chevron">
+              <svg class="icon icon-chevron" viewBox="0 0 24 24"><path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>
+            </div>
+          </div>
+          <div class="section-content" id="your-shifts-content">
+            <div id="your-shifts-list" class="shift-list">
+              <!-- Shifts inserted dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Collapsible: Available Shifts -->
+        <div class="collapsible-section" id="available-shifts-section">
+          <div class="section-header" id="available-shifts-toggle">
+            <h3>AVAILABLE SHIFTS</h3>
+            <div class="chevron">
+              <svg class="icon icon-chevron" viewBox="0 0 24 24"><path d="M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z"/></svg>
+            </div>
+          </div>
+          <div class="section-content" id="available-shifts-content">
+            <div id="available-shifts-list" class="shift-list">
+              <!-- Shifts inserted dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Home footer -->
+        <div class="view-footer">
+          <p id="home-update-time">Updated --</p>
+        </div>
+      </section>
+
+      <!-- ==================== TAB: PEOPLE ==================== -->
+      <section id="tab-people" class="tab-view hidden">
+        <div class="search-bar-wrapper">
+          <input type="text" id="coworkers-search" placeholder="Search coworkers...">
+          <svg class="search-icon" viewBox="0 0 24 24"><path d="M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z"/></svg>
+          <button id="clear-search-btn" class="clear-search-btn hidden">
+            <svg viewBox="0 0 24 24"><path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"/></svg>
+          </button>
+        </div>
+
+        <div id="coworkers-list" class="people-list">
+          <!-- Populated dynamically: Favorites at top, alphabetical after -->
+        </div>
+
+        <div id="people-empty-state" class="empty-state hidden">No coworkers found matching query.</div>
+
+        <div class="view-footer">
+          <p id="people-update-time">Updated --</p>
+        </div>
+      </section>
+
+      <!-- ==================== SUB-VIEW: TEAM SCHEDULE (GRID TIMELINE) ==================== -->
+      <section id="sub-team-schedule" class="tab-view hidden">
+        <!-- Cafe Switcher chip filter row -->
+        <div id="cafe-chip-group-scroll" class="chip-scroll-container">
+          <div id="cafe-chip-group" class="chip-group">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <div id="schedule-timeline-container" class="timeline-list">
+          <!-- Chronological list of days with mini timelines populated in JS -->
+        </div>
+
+        <div id="schedule-loading" class="empty-state">Loading schedule details...</div>
+        
+        <div class="view-footer">
+          <p id="schedule-update-time">Updated --</p>
+        </div>
+      </section>
+
+      <!-- ==================== SUB-VIEW: INDIVIDUAL PEER SCHEDULE ==================== -->
+      <section id="sub-peer-schedule" class="tab-view hidden">
+        <div class="peer-profile-header card">
+          <div class="peer-avatar" id="peer-avatar-large">JD</div>
+          <h2 id="peer-name-title">John Doe</h2>
+          <p id="peer-info-subtitle">Home Cafe: 202924</p>
+        </div>
+        
+        <h3 class="section-title">SCHEDULED SHIFTS</h3>
+        <div id="peer-shifts-list" class="shift-list">
+          <!-- Populated dynamically -->
+        </div>
+        <div id="peer-shifts-empty" class="empty-state hidden">No upcoming scheduled shifts.</div>
+      </section>
+
+      <!-- ==================== TAB: NOTIFICATIONS ==================== -->
+      <section id="tab-notifications" class="tab-view hidden">
+        <div id="notifications-list" class="notification-list">
+          <!-- Notifications populated dynamically -->
+        </div>
+        <div id="notifications-empty" class="empty-state hidden">No notifications found.</div>
+      </section>
+
+      <!-- ==================== TAB: SETTINGS ==================== -->
+      <section id="tab-settings" class="tab-view hidden">
+        
+        <!-- Account Info -->
+        <div class="settings-group">
+          <div class="settings-group-title">ACCOUNT</div>
+          <div class="card settings-card">
+            <div class="settings-item flex-col align-start">
+              <span class="settings-label" id="settings-user-name">Employee Name</span>
+              <span class="settings-desc" id="settings-user-id">User ID: --</span>
+            </div>
+            <div class="settings-item logout-item" id="logout-settings-btn">
+              <span class="settings-label red-text">Log Out</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Server address config -->
+        <div class="settings-group">
+          <div class="settings-group-title">SERVER CONFIGURATION</div>
+          <div class="card settings-card">
+            <div class="settings-item" id="reconfigure-server-btn">
+              <div class="flex-col align-start">
+                <span class="settings-label">Server Address</span>
+                <span class="settings-desc" id="settings-server-url">http://localhost:5050</span>
+              </div>
+              <svg class="chevron-arrow" viewBox="0 0 24 24"><path d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cafe Filter Settings -->
+        <div class="settings-group">
+          <div class="settings-group-title">CAFES</div>
+          <div class="card settings-card">
+            <div class="settings-item" id="cafe-settings-btn">
+              <div class="flex-col align-start">
+                <span class="settings-label">Manage Cafe Toggles</span>
+                <span class="settings-desc">Enable/Disable schedules and notification filters by Cafe</span>
+              </div>
+              <svg class="chevron-arrow" viewBox="0 0 24 24"><path d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Shift Options -->
+        <div class="settings-group">
+          <div class="settings-group-title">SHIFT OPTIONS</div>
+          <div class="card settings-card">
+            <div class="settings-item toggle-item">
+              <div class="flex-col align-start">
+                <span class="settings-label">Combine Shifts</span>
+                <span class="settings-desc">Merge adjacent shifts on the same business day</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="combine-shifts-switch">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="settings-item toggle-item">
+              <div class="flex-col align-start">
+                <span class="settings-label">Show Availability on Calendar</span>
+                <span class="settings-desc">Display availability highlights in the grid</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="show-availability-calendar-switch">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Earnings Options -->
+        <div class="settings-group">
+          <div class="settings-group-title">EARNINGS PREFERENCES</div>
+          <div class="card settings-card">
+            <div class="settings-item toggle-item">
+              <div class="flex-col align-start">
+                <span class="settings-label">Show Projected Earnings</span>
+                <span class="settings-desc">Calculate earnings using hourly wage on shifts list</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="show-money-switch">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notifications Setup (Web Push) -->
+        <div class="settings-group">
+          <div class="settings-group-title">BACKGROUND PUSH NOTIFICATIONS</div>
+          <div class="card settings-card">
+            <div class="settings-item toggle-item">
+              <div class="flex-col align-start">
+                <span class="settings-label">Enable background push alerts</span>
+                <span class="settings-desc" id="push-permission-status">Requires subscription registration</span>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="push-master-switch">
+                <span class="slider"></span>
+              </label>
+            </div>
+            
+            <div id="push-settings-panel" class="hidden-subpanel">
+              <div class="settings-item toggle-item">
+                <span class="settings-label indent-1">Shift Pickups</span>
+                <label class="switch">
+                  <input type="checkbox" id="push-pickups-switch">
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="settings-item toggle-item">
+                <span class="settings-label indent-1">Shift pickup approvals</span>
+                <label class="switch">
+                  <input type="checkbox" id="push-approvals-switch">
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="settings-item toggle-item">
+                <span class="settings-label indent-1">Manager Calls for Help</span>
+                <label class="switch">
+                  <input type="checkbox" id="push-calls-switch">
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="settings-item toggle-item">
+                <span class="settings-label indent-1">Schedule Published</span>
+                <label class="switch">
+                  <input type="checkbox" id="push-published-switch">
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div class="settings-item toggle-item">
+                <span class="settings-label indent-1">Other alerts</span>
+                <label class="switch">
+                  <input type="checkbox" id="push-other-switch">
+                  <span class="slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Display theme settings -->
+        <div class="settings-group">
+          <div class="settings-group-title">DISPLAY OPTIONS</div>
+          <div class="card settings-card">
+            <div class="settings-item" id="theme-settings-btn">
+              <div class="flex-col align-start">
+                <span class="settings-label">App Theme</span>
+                <span class="settings-desc" id="current-theme-label">System Default</span>
+              </div>
+              <svg class="chevron-arrow" viewBox="0 0 24 24"><path d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reset settings -->
+        <div class="settings-group">
+          <div class="settings-group-title">RESET</div>
+          <div class="card settings-card">
+            <div class="settings-item" id="reset-nicknames-btn">
+              <span class="settings-label red-text">Reset All Nicknames & Favorites</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- App Release Notes & Version -->
+        <div class="settings-group">
+          <div class="settings-group-title">APP INFORMATION</div>
+          <div class="card settings-card">
+            <div class="settings-item flex-col align-start" id="check-updates-btn">
+              <span class="settings-label">Better Pantry for iPhone</span>
+              <span class="settings-desc">Version 2.0.0 (Web PWA Client)</span>
+              <span class="settings-desc red-text margin-top-5 hidden" id="update-badge-text">New version available!</span>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ==================== SUB-VIEW: AVAILABILITY EDITOR ==================== -->
+      <section id="sub-availability" class="tab-view hidden">
+        <!-- Approved Max Hours -->
+        <div class="card max-hours-card">
+          <div class="max-hours-grid">
+            <div class="max-hours-cell">
+              <div class="max-hours-title">Daily Max</div>
+              <div class="max-hours-value" id="daily-max-value">--</div>
+              <div class="pending-badge hidden" id="daily-max-pending">PENDING: --</div>
+            </div>
+            <div class="max-hours-divider"></div>
+            <div class="max-hours-cell">
+              <div class="max-hours-title">Weekly Max</div>
+              <div class="max-hours-value" id="weekly-max-value">--</div>
+              <div class="pending-badge hidden" id="weekly-max-pending">PENDING: --</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Cancel pending changes btn -->
+        <button id="cancel-pending-changes-btn" class="btn warning-btn margin-bottom-15 hidden">Cancel Pending Changes</button>
+
+        <h3 class="section-title">WEEKLY AVAILABILITY</h3>
+        <div id="availability-rows-container">
+          <!-- Populate Sunday - Saturday availability blocks dynamically -->
+        </div>
+
+        <h3 class="section-title">REQUESTED TIME OFF</h3>
+        <div id="time-off-list-container">
+          <!-- Populate requests list -->
+        </div>
+        <div id="time-off-empty" class="empty-state hidden">No upcoming requested time off.</div>
+      </section>
+
+    </main>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="app-nav">
+      <button class="nav-item active" data-tab="home" id="nav-btn-home">
+        <svg class="nav-icon" viewBox="0 0 24 24"><path d="M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z"/></svg>
+        <span class="nav-label">Home</span>
+      </button>
+      <button class="nav-item" data-tab="people" id="nav-btn-people">
+        <svg class="nav-icon" viewBox="0 0 24 24"><path d="M16,13C15.71,13 15.38,13 15.03,13.05C16.19,13.89 17,15 17,16.5V19H23V16.5C23,14.17 18.33,13 16,13M8,13C5.67,13 1,14.17 1,16.5V19H15V16.5C15,14.17 10.33,13 8,13M8,11A3,3 0 0,0 11,8A3,3 0 0,0 8,5A3,3 0 0,0 5,8A3,3 0 0,0 8,11M16,11A3,3 0 0,0 19,8A3,3 0 0,0 16,5A3,3 0 0,0 13,8A3,3 0 0,0 16,11Z"/></svg>
+        <span class="nav-label">People</span>
+      </button>
+      <button class="nav-item" data-tab="notifications" id="nav-btn-notifications">
+        <div class="badge-wrapper">
+          <svg class="nav-icon" viewBox="0 0 24 24"><path d="M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.1 14,4.19 14,4.29C16.97,5.17 19,7.9 19,11V17L21,19M12,22A2,2 0 0,0 14,20H10A2,2 0 0,0 12,22Z"/></svg>
+          <span id="notif-badge" class="nav-badge hidden">0</span>
+        </div>
+        <span class="nav-label">Notifications</span>
+      </button>
+      <button class="nav-item" data-tab="settings" id="nav-btn-settings">
+        <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.47,5.34 14.86,5.08L14.48,2.42C14.44,2.2 14.25,2 14,2H10C9.75,2 9.56,2.2 9.52,2.42L9.14,5.08C8.53,5.34 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.04 4.95,18.95L7.44,17.95C7.96,18.34 8.53,18.66 9.14,18.92L9.52,21.58C9.56,21.8 9.75,22 10,22H14C14.25,22 14.44,21.8 14.48,21.58L14.86,18.92C15.47,18.66 16.04,18.34 16.56,17.95L19.05,18.95C19.27,19.04 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/></svg>
+        <span class="nav-label">Settings</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- ==================== DIALOG MODALS ==================== -->
+  
+  <!-- Shift Detail Modal -->
+  <div id="shift-detail-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="shift-modal-title">Shift Details</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="card shift-detail-card">
+          <div class="shift-detail-row">
+            <span class="shift-detail-label">Position</span>
+            <span id="shift-modal-position" class="shift-detail-val font-bold">Line Production</span>
+          </div>
+          <div class="shift-detail-row">
+            <span class="shift-detail-label">Time & Date</span>
+            <span id="shift-modal-datetime" class="shift-detail-val">Wed 6/17 8:00AM - 4:00PM</span>
+          </div>
+          <div class="shift-detail-row">
+            <span class="shift-detail-label">Location</span>
+            <span id="shift-modal-location" class="shift-detail-val">Cafe #202924</span>
+          </div>
+          <div class="shift-detail-row" id="shift-modal-note-row">
+            <span class="shift-detail-label">Notes</span>
+            <span id="shift-modal-note" class="shift-detail-val italic">Manager notes go here...</span>
+          </div>
+          <div class="shift-detail-row" id="shift-modal-money-row">
+            <span class="shift-detail-label">Projected Earnings</span>
+            <span id="shift-modal-money" class="shift-detail-val green-text font-bold">$120.00</span>
+          </div>
+          <div id="shift-modal-pickup-requests-row" class="hidden">
+            <div class="shift-detail-label margin-bottom-5">Pickup Requests Status</div>
+            <div id="shift-modal-pickup-requests-list" class="pickup-requests-list">
+              <!-- Pending requests list -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Mini horizontal timeline chart (replicates coworker schedule mini-chart) -->
+        <div id="shift-modal-coworkers-wrapper" class="hidden">
+          <div class="coworkers-header-row">
+            <h4>COWORKERS ON DUTY</h4>
+            <div class="action-row">
+              <button id="modal-share-chart-btn" class="text-action-btn flex-center">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M18,16.08C17.24,16.08 16.56,16.38 16.04,16.85L8.91,12.7C8.96,12.47 9,12.24 9,12C9,11.76 8.96,11.53 8.91,11.3L15.96,7.19C16.5,7.69 17.21,8 18,8A3,3 0 0,0 21,5A3,3 0 0,0 18,2A3,3 0 0,0 15,5C15,5.24 15.04,5.47 15.09,5.7L8.04,9.81C7.5,9.31 6.79,9 6,9A3,3 0 0,0 3,12A3,3 0 0,0 6,15C6.79,15 7.5,14.69 8.04,14.19L15.16,18.34C15.11,18.55 15.08,18.77 15.08,19C15.08,20.61 16.39,21.91 18,21.91C19.61,21.91 20.91,20.61 20.91,19C20.91,17.39 19.61,16.08 18,16.08Z"/></svg>
+                Share
+              </button>
+              <button id="modal-expand-chart-btn" class="text-action-btn flex-center">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M9.5,13.09L10.91,14.5L6.41,19H10V21H3V14H5V17.59L9.5,13.09M10.91,9.5L9.5,10.91L5,6.41V10H3V3H10V5H6.41L10.91,9.5M14.5,13.09L19,17.59V14H21V21H14V19H17.59L13.09,14.5L14.5,13.09M13.09,9.5L14.5,8.09L19,12.59V9H21V3H14V5H17.59L13.09,9.5Z"/></svg>
+                Expand
+              </button>
+            </div>
+          </div>
+          
+          <div class="coworkers-chart-scroll">
+            <div id="modal-coworkers-chart" class="coworkers-timeline-chart">
+              <!-- Inline timeline chart rendered by JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Shift action buttons (Post, Pickup, Trade, Cover, Cancel buttons) -->
+        <div id="shift-modal-actions" class="modal-actions-container">
+          <!-- Dynamic buttons populated by JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Nickname & Privacy Edit Modal -->
+  <div id="nickname-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="nickname-modal-title">EDIT NICKNAME</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="nickname-first-input">First Name Nickname</label>
+          <input type="text" id="nickname-first-input" placeholder="e.g. Johnny">
+        </div>
+        <div class="form-group">
+          <label for="nickname-last-input">Last Name Nickname</label>
+          <input type="text" id="nickname-last-input" placeholder="e.g. D.">
+        </div>
+        <div class="settings-item toggle-item no-border">
+          <div class="flex-col align-start">
+            <span class="settings-label">Hide Last Name</span>
+            <span class="settings-desc">Hide this coworker's last name in lists and grids</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="hide-last-name-switch">
+            <span class="slider"></span>
+          </label>
+        </div>
+        <button id="save-nickname-btn" class="btn primary-btn margin-top-15">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Time Off Request Modal -->
+  <div id="time-off-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>REQUEST TIME OFF</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="time-off-date-input">Time Off Date</label>
+          <input type="date" id="time-off-date-input" required>
+        </div>
+        <div class="form-group toggle-item">
+          <span class="settings-label">All Day</span>
+          <label class="switch">
+            <input type="checkbox" id="time-off-allday-switch" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div id="time-off-hours-container" class="time-range-group hidden">
+          <div class="form-group">
+            <label for="time-off-start-time">Start Time</label>
+            <input type="time" id="time-off-start-time" value="08:00">
+          </div>
+          <div class="form-group">
+            <label for="time-off-end-time">End Time</label>
+            <input type="time" id="time-off-end-time" value="16:00">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="time-off-comments-input">Comments</label>
+          <textarea id="time-off-comments-input" placeholder="Explain reason for time off request..."></textarea>
+        </div>
+        <button id="submit-time-off-btn" class="btn primary-btn margin-top-15">Submit Request</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Availability Modal -->
+  <div id="edit-availability-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>EDIT AVAILABILITY</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body scrollable-modal-body">
+        
+        <!-- Max Hours config -->
+        <div class="card margin-bottom-15 padding-15">
+          <h4>Maximum Hours Limits</h4>
+          <div class="form-group margin-top-10">
+            <label for="edit-max-daily-hours">Max Hours Daily</label>
+            <input type="number" id="edit-max-daily-hours" min="0" max="24" step="0.5">
+          </div>
+          <div class="form-group">
+            <label for="edit-max-weekly-hours">Max Hours Weekly</label>
+            <input type="number" id="edit-max-weekly-hours" min="0" max="168" step="0.5">
+          </div>
+        </div>
+        
+        <h4 class="margin-bottom-10">Weekly Availability Schedule</h4>
+        <div id="edit-availability-days-list">
+          <!-- Populate edit forms for Sunday to Saturday in JS -->
+        </div>
+
+        <button id="submit-availability-btn" class="btn primary-btn margin-top-15">Submit Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Money Settings Modal -->
+  <div id="money-settings-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>EARNINGS CALCULATOR</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="hourly-wage-input">Hourly Wage ($)</label>
+          <input type="number" id="hourly-wage-input" placeholder="e.g. 15.50" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+          <label for="weekly-hours-input">Hours Scheduled This Week</label>
+          <input type="number" id="weekly-hours-input" placeholder="Hours" step="0.05" min="0">
+          <p id="money-week-range-text" class="input-hint">Wed 6/17 - Tue 6/23 hours scheduled: --</p>
+        </div>
+        
+        <div class="earnings-result-card card">
+          <div class="earnings-result-label">PROJECTED GROSS PAY</div>
+          <div id="earnings-result-value" class="earnings-result-value">$0.00</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Message Viewer Modal -->
+  <div id="notif-viewer-modal" class="modal hidden">
+    <div class="modal-content max-width-600">
+      <div class="modal-header">
+        <h3 id="notif-modal-subject">Notification Subject</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="notif-meta">
+          <span id="notif-modal-date" class="notif-meta-date">Date --</span>
+          <span id="notif-modal-read-status" class="badge">Unread</span>
+        </div>
+        <!-- Iframe sandboxing to render HTML content securely and bypass cross-origin style leaks -->
+        <div class="notif-iframe-container">
+          <iframe id="notif-modal-iframe" sandbox="allow-same-origin"></iframe>
+        </div>
+        <div class="modal-actions-container no-border margin-top-15" id="notif-modal-actions">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cafe Settings / Filters Modal -->
+  <div id="cafe-settings-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>MANAGE CAFES</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body scrollable-modal-body">
+        <p class="section-desc">Toggle which Cafes are visible on your schedule, calendar, and coworker directories. Disabling a Cafe will also mute its push notifications.</p>
+        <div id="cafe-toggles-list" class="cafe-toggles-container">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Theme Selector Modal -->
+  <div id="theme-settings-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>SELECT APP THEME</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="theme-options-list">
+          <button class="theme-option-btn active" data-theme="system">System Default</button>
+          <button class="theme-option-btn" data-theme="light">Light Mode</button>
+          <button class="theme-option-btn" data-theme="dark">Dark Mode</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Co-worker Selection Modal (For Trade/Cover workflows) -->
+  <div id="select-coworker-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="select-coworker-title">Select Coworker</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body scrollable-modal-body">
+        <div class="search-bar-wrapper">
+          <input type="text" id="coworker-select-search" placeholder="Search coworkers...">
+        </div>
+        <div id="coworker-select-list" class="people-list select-list">
+          <!-- Coworkers listed dynamically -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Co-worker Shift Selection Modal (For Trade workflows) -->
+  <div id="select-peer-shift-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="select-peer-shift-title">Select Coworker's Shift</h3>
+        <button class="close-modal-btn">&times;</button>
+      </div>
+      <div class="modal-body scrollable-modal-body">
+        <p class="section-desc">Select which shift belonging to this coworker you would like to trade your shift for.</p>
+        <div id="peer-shift-select-list" class="shift-list select-list">
+          <!-- Coworker's shifts listed dynamically -->
+        </div>
+        <div id="peer-shift-select-empty" class="empty-state hidden">No overlapping or tradeable shifts found for this coworker.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Message notification element -->
+  <div id="toast-message" class="toast hidden">Toast message text</div>
+
+  <!-- Main JavaScript -->
+  <script src="index.js"></script>
+</body>
+</html>
