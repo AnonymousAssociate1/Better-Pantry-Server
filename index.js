@@ -2152,8 +2152,48 @@ function openShiftDetails(shift, isAvailable, trackItem = null) {
     moneyRow.classList.add('hidden');
   }
 
-  // Hide daily visual timeline mini-chart wrapper
-  document.getElementById('shift-modal-coworkers-wrapper').classList.add('hidden');
+  // Show daily visual timeline mini-chart wrapper if we have team data
+  const timelineContainer = document.getElementById('modal-coworkers-chart');
+  timelineContainer.innerHTML = '';
+  
+  const teamData = state.cache.teamSchedule || [];
+  const schedule = state.cache.schedule;
+  const merged = mergeTeamData(teamData, schedule?.currentShifts || [], schedule?.track || [], schedule?.employeeInfo || []);
+  const key = displayShift.startDateTime.substring(0, 10);
+  
+  const dayShifts = [];
+  merged.forEach(member => {
+    const isMe = member.associate?.employeeId === state.user.userId;
+    const isAvail = member.associate?.employeeId === 'AVAILABLE_SHIFT';
+    
+    (member.shifts || []).forEach(shift => {
+      if (shift.startDateTime && shift.startDateTime.substring(0, 10) === key) {
+        if (isCafeFilterEnabled(shift.cafeNumber)) {
+          dayShifts.push({
+            shift,
+            associate: member.associate,
+            isMe,
+            isAvailable: isAvail
+          });
+        }
+      }
+    });
+  });
+
+  if (dayShifts.length > 0) {
+    document.getElementById('shift-modal-coworkers-wrapper').classList.remove('hidden');
+    document.getElementById('modal-share-chart-btn').classList.remove('hidden');
+    document.getElementById('modal-expand-chart-btn').classList.remove('hidden');
+    
+    document.getElementById('modal-expand-chart-btn').onclick = () => {
+      closeModal('shift-detail-modal');
+      showExpandedDayTimeline({ date: new Date(displayShift.startDateTime), shifts: dayShifts });
+    };
+    
+    drawTimelineChart(timelineContainer, dayShifts);
+  } else {
+    document.getElementById('shift-modal-coworkers-wrapper').classList.add('hidden');
+  }
 
   // Title header text mapping
   const name = isAvailable ? 'Available Shift' : getCoworkerNameResolved(displayShift.employeeId);
@@ -3018,18 +3058,64 @@ function formatNotifDate(dateStr) {
   } catch(e) { return dateStr; }
 }
 
+const workstationCustomNames = {
+  "QC_2": "QC 2",
+  "1ST_CASHIER_1": "Cashier 1",
+  "SANDWICH_2": "Sandwich 2",
+  "SANDWICH_1": "Sandwich 1",
+  "SALAD_1": "Salad 1",
+  "SALAD_2": "Salad 2",
+  "DTORDERTAKER_1": "DriveThru",
+  "1ST_DR_1": "Dining Room",
+  "1st_Cashier": "Cashier 1",
+  "1st_Dr": "Dining Room",
+  "DtOrderTaker": "DriveThru",
+  "Sandwich_1": "Sandwich 1",
+  "Sandwich_2": "Sandwich 2",
+  "Qc_2": "QC 2",
+  "1ST_SANDWICH_1": "Sandwich 1",
+  "Bake": "Baker",
+  "BAKER": "Baker",
+  "SALAD": "Salad 1",
+  "SANDWICH": "Sandwich 1",
+  "1ST_CASHIER": "Cashier 1",
+  "QC_1": "QC 1",
+  "DTORDERTAKER": "DriveThru",
+  "1ST_DR": "Dining Room",
+  "1st_DR": "Dining Room",
+  "1st _DR": "Dining Room",
+  "1st _Dr": "Dining Room",
+  "1st_dr": "Dining Room",
+  "1st _dr": "Dining Room",
+  "MANAGER_1": "Manager",
+  "MANAGER": "Manager",
+  "MANAGERADMIN_1": "Manager",
+  "MANAGERADMIN": "Manager",
+  "PEOPLEMANAGEMENT_1": "Manager",
+  "PEOPLEMANAGEMENT": "Manager",
+  "LABOR_MANAGEMENT": "Manager",
+  "LABORMANAGEMENT": "Manager",
+  "Labor Management": "Manager"
+};
+
 function getWorkstationDisplayName(id, name) {
-  if (!id && !name) return 'Shift';
-  const lookup = (id || '').toUpperCase();
-  if (lookup === 'CASHIER' || lookup === 'CASH') return 'Cashier';
-  if (lookup === 'LINE' || lookup === 'PROD') return 'Line Production';
-  if (lookup === 'QC' || lookup === 'EXP') return 'QC / Expo';
-  if (lookup === 'DISII' || lookup === 'DISH') return 'Dishwasher';
-  if (lookup === 'PREP') return 'Prep';
-  if (lookup === 'BAKE') return 'Baker';
-  if (lookup === 'CAT' || lookup === 'CATER') return 'Catering';
-  if (lookup === 'DRIV' || lookup === 'DELIV') return 'Delivery Driver';
-  return name || id;
+  const finalId = id ? id.trim() : null;
+  const finalName = name ? name.trim() : null;
+  
+  if (finalId && workstationCustomNames[finalId]) return workstationCustomNames[finalId];
+  if (finalName && workstationCustomNames[finalName]) return workstationCustomNames[finalName];
+  
+  // Try case-insensitive matching if not exact match found
+  if (finalId) {
+    const match = Object.keys(workstationCustomNames).find(k => k.toLowerCase() === finalId.toLowerCase());
+    if (match) return workstationCustomNames[match];
+  }
+  if (finalName) {
+    const match = Object.keys(workstationCustomNames).find(k => k.toLowerCase() === finalName.toLowerCase());
+    if (match) return workstationCustomNames[match];
+  }
+  
+  return name || id || 'Shift';
 }
 
 function getCafeDisplayName(cafeNo, cafeList) {
