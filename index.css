@@ -110,14 +110,14 @@ html, body {
   right: 0;
   height: calc(56px + var(--safe-top));
   padding-top: var(--safe-top);
-  background-color: var(--card-background);
-  border-bottom: 1px solid var(--divider);
+  background-color: var(--background); /* Blends with screen body background */
+  border-bottom: none; /* Removed separating border line */
   display: flex;
   flex-direction: column; /* Centered column layout */
   align-items: center;
   justify-content: center;
   z-index: 100;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  box-shadow: none; /* Removed separating shadow */
   padding-left: 56px; /* Avoid overlap with side buttons */
   padding-right: 56px;
   text-align: center;
@@ -1833,4 +1833,88 @@ body.dark-theme .toast {
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   DYNAMIC SHIFT DETAIL DIALOG CARDS
+   ========================================================================== */
+.shift-detail-card-separator {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--primary-green);
+  text-align: center;
+  margin-top: 24px;
+  margin-bottom: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.shift-card-datetime {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.shift-card-status {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  text-align: center;
+  white-space: pre-line;
+}
+
+.shift-card-position {
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.shift-card-money {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--primary-green);
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.shift-card-location {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 12px;
+  text-align: center;
+}
+
+.shift-card-coworkers-wrapper {
+  width: 100%;
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+
+.shift-card-coworkers-wrapper h4 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--primary-green);
+  margin-bottom: 8px;
+  letter-spacing: 0.05em;
+}
+
+.pickup-requests-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-top: 12px;
+  margin-bottom: 6px;
+  text-align: left;
+}
+
+.pickup-requests-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  text-align: left;
+  font-size: 13px;
 }

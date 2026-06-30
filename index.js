@@ -648,6 +648,58 @@ async function fetchTeamSchedules() {
 // ----------------------------------------------------
 function renderHomeView() {
   const schedule = state.cache.schedule;
+
+  // Initialize cafe toggles switcher for Home Screen
+  const homeCafe = state.user?.cafeNo || '';
+  const enabledCafes = state.settings.enabledCafes || [];
+  
+  let filterCafes = enabledCafes;
+  if (filterCafes.length === 0 && schedule) {
+    const sampleShift = (schedule.currentShifts || []).find(s => s.cafeNumber) || 
+                        (schedule.track || []).map(t => t.primaryShiftRequest?.shift).find(s => s?.cafeNumber);
+    filterCafes = homeCafe ? [homeCafe] : (sampleShift?.cafeNumber ? [sampleShift.cafeNumber] : []);
+  }
+
+  // Home Cafe Switch Bar
+  const switcher = document.getElementById('home-cafe-chip-group-scroll');
+  const chipGroup = document.getElementById('home-cafe-chip-group');
+  if (switcher && chipGroup) {
+    chipGroup.innerHTML = '';
+
+    if (filterCafes.length <= 1) {
+      switcher.classList.add('hidden');
+      activeCafeHome = ''; // No filtering needed
+    } else {
+      switcher.classList.remove('hidden');
+      
+      const sorted = [...filterCafes].sort();
+      
+      const allChip = document.createElement('button');
+      allChip.className = `chip ${!activeCafeHome ? 'active' : ''}`;
+      allChip.innerText = 'ALL CAFES';
+      allChip.onclick = () => {
+        activeCafeHome = '';
+        document.querySelectorAll('#home-cafe-chip-group .chip').forEach(c => c.classList.remove('active'));
+        allChip.classList.add('active');
+        renderHomeView();
+      };
+      chipGroup.appendChild(allChip);
+
+      sorted.forEach(cafeNo => {
+        const displayName = getCafeDisplayName(cafeNo, schedule?.cafeList);
+        const chip = document.createElement('button');
+        chip.className = `chip ${activeCafeHome === cafeNo ? 'active' : ''}`;
+        chip.innerText = displayName;
+        chip.onclick = () => {
+          activeCafeHome = cafeNo;
+          document.querySelectorAll('#home-cafe-chip-group .chip').forEach(c => c.classList.remove('active'));
+          chip.classList.add('active');
+          renderHomeView();
+        };
+        chipGroup.appendChild(chip);
+      });
+    }
+  }
   
   // Render timestamp
   const updatedText = document.getElementById('home-update-time');
@@ -727,10 +779,7 @@ function renderHomeView() {
     cell.className = 'calendar-day';
     cell.innerText = d.getDate();
 
-    // Check month to style off-month days differently
-    if (d.getMonth() !== today.getMonth()) {
-      cell.classList.add('other-month');
-    }
+
 
     // Check states
     const isToday = key === today.toISOString().split('T')[0];
@@ -1176,6 +1225,7 @@ function renderPeerShiftsList() {
 // SUB-VIEW: TEAM SCHEDULE GRID TIMELINE CHART RENDERER
 // ----------------------------------------------------
 let activeCafeTimeline = '';
+let activeCafeHome = '';
 
 function renderTeamScheduleView() {
   const schedule = state.cache.schedule;
@@ -1769,6 +1819,14 @@ function renderSettingsView() {
 // enabled cafe helpers
 function isCafeFilterEnabled(cafeNo) {
   if (!cafeNo) return true;
+  // If we are currently rendering the home view, filter by activeCafeHome if set
+  if (state.currentTab === 'home' && activeCafeHome) {
+    return cafeNo.toString() === activeCafeHome.toString();
+  }
+  // If we are rendering the team schedule view, filter by activeCafeTimeline if set
+  if (state.currentTab === 'team-schedule' && activeCafeTimeline) {
+    return cafeNo.toString() === activeCafeTimeline.toString();
+  }
   const list = state.settings.enabledCafes;
   if (list.length === 0) return true;
   return list.includes(cafeNo.toString());
@@ -2070,76 +2128,19 @@ function closeModal(modalId) {
 }
 
 // Day schedule details calendar grid cell click modal
-function showDayScheduleModal(date, shifts, avails) {
-  const container = document.getElementById('modal-coworkers-chart');
-  container.innerHTML = '';
-
-  const modal = document.getElementById('shift-detail-modal');
-  
-  // Header title date display
-  document.getElementById('shift-modal-title').innerText = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-  
-  // Hide details rows, show visual chart timeline
-  document.getElementById('shift-modal-position').parentElement.classList.add('hidden');
-  document.getElementById('shift-modal-datetime').parentElement.classList.add('hidden');
-  document.getElementById('shift-modal-location').parentElement.classList.add('hidden');
-  document.getElementById('shift-modal-note-row').classList.add('hidden');
-  document.getElementById('shift-modal-money-row').classList.add('hidden');
-  document.getElementById('shift-modal-pickup-requests-row').classList.add('hidden');
-  document.getElementById('shift-modal-actions').innerHTML = '';
-
-  document.getElementById('shift-modal-coworkers-wrapper').classList.remove('hidden');
-  document.getElementById('modal-share-chart-btn').classList.add('hidden');
-  document.getElementById('modal-expand-chart-btn').classList.add('hidden');
-
-  // Load the timeline visual lanes
-  const teamData = state.cache.teamSchedule || [];
-  const schedule = state.cache.schedule;
-  const merged = mergeTeamData(teamData, schedule?.currentShifts || [], schedule?.track || [], schedule?.employeeInfo || []);
-  const key = date.toISOString().split('T')[0];
-
-  const dayShifts = [];
-  merged.forEach(member => {
-    const isMe = member.associate?.employeeId === state.user.userId;
-    const isAvail = member.associate?.employeeId === 'AVAILABLE_SHIFT';
-    
-    (member.shifts || []).forEach(shift => {
-      if (shift.startDateTime && shift.startDateTime.substring(0, 10) === key) {
-        if (isCafeFilterEnabled(shift.cafeNumber)) {
-          dayShifts.push({
-            shift,
-            associate: member.associate,
-            isMe,
-            isAvailable: isAvail
-          });
-        }
-      }
-    });
-  });
-
-  if (dayShifts.length > 0) {
-    drawTimelineChart(container, dayShifts);
-    openModal('shift-detail-modal');
-  } else {
-    showToast('No shifts scheduled for this day');
-  }
-}
-
-// Individual Shift Details Modal popup
-function openShiftDetails(shift, isAvailable, trackItem = null) {
-  // If combineShifts option is active, check and show merged segments
+// Day schedule details calendar grid cell click modal
+function createShiftCardElement(shift, isAvailable, hideCoworkers = false, trackItem = null) {
+  // Combine shifts logic if combineShifts is enabled
   let displayShift = { ...shift };
   if (state.settings.combineShifts && !isAvailable && shift.employeeId) {
     const cacheTeam = state.cache.teamSchedule || [];
     const schedule = state.cache.schedule;
     const mergedMembers = mergeTeamData(cacheTeam, schedule?.currentShifts || [], schedule?.track || [], schedule?.employeeInfo || []);
-    
     const person = mergedMembers.find(m => m.associate?.employeeId === shift.employeeId);
     const day = shift.startDateTime.substring(0, 10);
     const sameDayShifts = (person?.shifts || []).filter(s => s.startDateTime.substring(0, 10) === day);
     
     if (sameDayShifts.length > 1) {
-      // Combine times
       const sorted = [...sameDayShifts].sort((a,b) => a.startDateTime.localeCompare(b.startDateTime));
       displayShift.startDateTime = sorted[0].startDateTime;
       displayShift.endDateTime = sorted[sorted.length - 1].endDateTime;
@@ -2148,177 +2149,335 @@ function openShiftDetails(shift, isAvailable, trackItem = null) {
     }
   }
 
-  // Populate layout text fields
-  const role = getWorkstationDisplayName(displayShift.workstationId || displayShift.workstationCode, displayShift.workstationName);
-  document.getElementById('shift-modal-position').innerText = role;
-  document.getElementById('shift-modal-position').parentElement.classList.remove('hidden');
+  const card = document.createElement('div');
+  card.className = 'card shift-detail-card';
 
-  document.getElementById('shift-modal-datetime').innerText = formatShiftDetailsDateTimeString(displayShift.startDateTime, displayShift.endDateTime);
-  document.getElementById('shift-modal-datetime').parentElement.classList.remove('hidden');
+  // Centered Title/Header (similar to Android app)
+  const titleEl = document.createElement('h3');
+  titleEl.className = 'shift-card-title';
+  titleEl.style.fontSize = '16px';
+  titleEl.style.fontWeight = '700';
+  titleEl.style.marginBottom = '8px';
+  titleEl.style.textAlign = 'center';
+  titleEl.innerText = isAvailable ? 'Available Shift' : getCoworkerNameResolved(displayShift.employeeId);
+  card.appendChild(titleEl);
 
-  const cache = state.cache.schedule;
-  document.getElementById('shift-modal-location').innerText = getCafeDisplayName(displayShift.cafeNumber, cache?.cafeList);
-  document.getElementById('shift-modal-location').parentElement.classList.remove('hidden');
+  // Centered Date & Time
+  const timeEl = document.createElement('div');
+  timeEl.className = 'shift-card-datetime';
+  timeEl.innerText = formatShiftDetailsDateTimeString(displayShift.startDateTime, displayShift.endDateTime);
+  card.appendChild(timeEl);
 
-  // Note notes row
-  const notesRow = document.getElementById('shift-modal-note-row');
+  // Resolve track item if needed
+  let resolvedTrackItem = trackItem;
+  if (isAvailable && !resolvedTrackItem) {
+    resolvedTrackItem = (state.cache.schedule?.track || []).find(t => 
+      t.type === 'AVAILABLE' && 
+      t.primaryShiftRequest?.shift?.shiftId?.toString() === displayShift.shiftId?.toString()
+    );
+  }
+
+  // Status / Posted By (if available shift or note present)
+  let statusText = '';
+  if (isAvailable && resolvedTrackItem?.primaryShiftRequest) {
+    const req = resolvedTrackItem.primaryShiftRequest;
+    statusText = `Posted by ${getCoworkerNameResolved(req.requesterId)} ${getTimeAgoText(req.requestedAt)}`;
+  }
   if (displayShift.managerNotes) {
-    document.getElementById('shift-modal-note').innerText = displayShift.managerNotes;
-    notesRow.classList.remove('hidden');
-  } else {
-    notesRow.classList.add('hidden');
+    statusText = (statusText ? statusText + '\n' : '') + `Note: ${displayShift.managerNotes}`;
   }
 
-  // Money row
-  const moneyRow = document.getElementById('shift-modal-money-row');
-  if (state.settings.showMoney) {
-    document.getElementById('shift-modal-money').innerText = `$${calculateShiftEarnings(displayShift.startDateTime, displayShift.endDateTime).toFixed(2)}`;
-    moneyRow.classList.remove('hidden');
-  } else {
-    moneyRow.classList.add('hidden');
+  if (statusText) {
+    const statusEl = document.createElement('div');
+    statusEl.className = 'shift-card-status';
+    statusEl.innerText = statusText;
+    card.appendChild(statusEl);
   }
 
-  // Show daily visual timeline mini-chart wrapper if we have team data
-  const timelineContainer = document.getElementById('modal-coworkers-chart');
-  timelineContainer.innerHTML = '';
-  
-  const teamData = state.cache.teamSchedule || [];
-  const schedule = state.cache.schedule;
-  const merged = mergeTeamData(teamData, schedule?.currentShifts || [], schedule?.track || [], schedule?.employeeInfo || []);
-  const key = displayShift.startDateTime.substring(0, 10);
-  
-  const dayShifts = [];
-  merged.forEach(member => {
-    const isMe = member.associate?.employeeId === state.user.userId;
-    const isAvail = member.associate?.employeeId === 'AVAILABLE_SHIFT';
-    
-    (member.shifts || []).forEach(shift => {
-      if (shift.startDateTime && shift.startDateTime.substring(0, 10) === key) {
-        if (isCafeFilterEnabled(shift.cafeNumber)) {
-          dayShifts.push({
-            shift,
-            associate: member.associate,
-            isMe,
-            isAvailable: isAvail
-          });
-        }
-      }
-    });
-  });
+  // Position (Workstation)
+  const posEl = document.createElement('div');
+  posEl.className = 'shift-card-position';
+  posEl.innerText = getWorkstationDisplayName(displayShift.workstationId || displayShift.workstationCode, displayShift.workstationName);
+  card.appendChild(posEl);
 
-  if (dayShifts.length > 0) {
-    document.getElementById('shift-modal-coworkers-wrapper').classList.remove('hidden');
-    document.getElementById('modal-share-chart-btn').classList.remove('hidden');
-    document.getElementById('modal-expand-chart-btn').classList.remove('hidden');
+  // Money (Projected Earnings)
+  if (state.settings.showMoney && (displayShift.employeeId === state.user.userId || isAvailable)) {
+    const moneyEl = document.createElement('div');
+    moneyEl.className = 'shift-card-money';
+    moneyEl.innerText = `$${calculateShiftEarnings(displayShift.startDateTime, displayShift.endDateTime).toFixed(2)}`;
+    card.appendChild(moneyEl);
+  }
+
+  // Coworkers on Duty section (timeline chart)
+  if (!hideCoworkers && displayShift.cafeNumber) {
+    const coworkersWrapper = document.createElement('div');
+    coworkersWrapper.className = 'shift-card-coworkers-wrapper';
+
+    const headerRow = document.createElement('div');
+    headerRow.className = 'coworkers-header-row';
     
-    document.getElementById('modal-expand-chart-btn').onclick = () => {
-      closeModal('shift-detail-modal');
-      showExpandedDayTimeline({ date: new Date(displayShift.startDateTime), shifts: dayShifts });
+    const h4 = document.createElement('h4');
+    h4.innerText = 'SCHEDULE';
+    headerRow.appendChild(h4);
+
+    const actions = document.createElement('div');
+    actions.className = 'action-row';
+
+    // Share Button
+    const shareBtn = document.createElement('button');
+    shareBtn.className = 'text-action-btn flex-center';
+    shareBtn.innerHTML = `<svg class="icon" viewBox="0 0 24 24"><path d="M18,16.08C17.24,16.08 16.56,16.38 16.04,16.85L8.91,12.7C8.96,12.47 9,12.24 9,12C9,11.76 8.96,11.53 8.91,11.3L15.96,7.19C16.5,7.69 17.21,8 18,8A3,3 0 0,0 21,5A3,3 0 0,0 18,2A3,3 0 0,0 15,5C15,5.24 15.04,5.47 15.09,5.7L8.04,9.81C7.5,9.31 6.79,9 6,9A3,3 0 0,0 3,12A3,3 0 0,0 6,15C6.79,15 7.5,14.69 8.04,14.19L15.16,18.34C15.11,18.55 15.08,18.77 15.08,19C15.08,20.61 16.39,21.91 18,21.91C19.61,21.91 20.91,20.61 20.91,19C20.91,17.39 19.61,16.08 18,16.08Z"/></svg> Share`;
+    shareBtn.onclick = (e) => {
+      e.stopPropagation();
+      showToast('Share details chart is coming soon.');
     };
+    actions.appendChild(shareBtn);
+
+    // Expand Button
+    const expandBtn = document.createElement('button');
+    expandBtn.className = 'text-action-btn flex-center';
+    expandBtn.innerHTML = `<svg class="icon" viewBox="0 0 24 24"><path d="M9.5,13.09L10.91,14.5L6.41,19H10V21H3V14H5V17.59L9.5,13.09M10.91,9.5L9.5,10.91L5,6.41V10H3V3H10V5H6.41L10.91,9.5M14.5,13.09L19,17.59V14H21V21H14V19H17.59L13.09,14.5L14.5,13.09M13.09,9.5L14.5,8.09L19,12.59V9H21V3H14V5H17.59L13.09,9.5Z"/></svg> Expand`;
     
-    drawTimelineChart(timelineContainer, dayShifts);
-  } else {
-    document.getElementById('shift-modal-coworkers-wrapper').classList.add('hidden');
+    actions.appendChild(expandBtn);
+    headerRow.appendChild(actions);
+    coworkersWrapper.appendChild(headerRow);
+
+    const chartScroll = document.createElement('div');
+    chartScroll.className = 'coworkers-chart-scroll';
+    const chartTimeline = document.createElement('div');
+    chartTimeline.className = 'coworkers-timeline-chart';
+    chartScroll.appendChild(chartTimeline);
+    coworkersWrapper.appendChild(chartScroll);
+
+    // Load coworker shifts overlapping with this shift (exact Kotlin overlap math)
+    const teamData = state.cache.teamSchedule || [];
+    const schedule = state.cache.schedule;
+    const merged = mergeTeamData(teamData, schedule?.currentShifts || [], schedule?.track || [], schedule?.employeeInfo || []);
+    const key = displayShift.startDateTime.substring(0, 10);
+    const myStart = new Date(displayShift.startDateTime);
+    const myEnd = new Date(displayShift.endDateTime);
+
+    const dayShifts = [];
+    merged.forEach(member => {
+      const isMe = member.associate?.employeeId === state.user.userId;
+      const isAvail = member.associate?.employeeId === 'AVAILABLE_SHIFT';
+      
+      (member.shifts || []).forEach(s => {
+        if (s.startDateTime && s.startDateTime.substring(0, 10) === key) {
+          const sStart = new Date(s.startDateTime);
+          const sEnd = new Date(s.endDateTime);
+          if (sStart < myEnd && sEnd > myStart && (s.cafeNumber === null || s.cafeNumber === displayShift.cafeNumber)) {
+            dayShifts.push({
+              shift: s,
+              associate: member.associate,
+              isMe,
+              isAvailable: isAvail
+            });
+          }
+        }
+      });
+    });
+
+    if (dayShifts.length > 0) {
+      expandBtn.onclick = (e) => {
+        e.stopPropagation();
+        closeModal('shift-detail-modal');
+        showExpandedDayTimeline({ date: new Date(displayShift.startDateTime), shifts: dayShifts });
+      };
+      drawTimelineChart(chartTimeline, dayShifts);
+      card.appendChild(coworkersWrapper);
+    }
   }
 
-  // Title header text mapping
-  const name = isAvailable ? 'Available Shift' : getCoworkerNameResolved(displayShift.employeeId);
-  document.getElementById('shift-modal-title').innerText = name;
+  // Pickup attempts list (coworkers attempting to pickup my posted shifts)
+  const myId = state.user.userId;
+  const isPoster = !isAvailable && displayShift.employeeId === myId;
+  if (isAvailable || isPoster) {
+    const trackItem = resolvedTrackItem || (state.cache.schedule?.track || []).find(t => 
+      t.primaryShiftRequest?.shift?.shiftId?.toString() === displayShift.shiftId?.toString() &&
+      t.primaryShiftRequest?.state !== 'CANCELLED'
+    );
+    
+    if (trackItem) {
+      const pendingList = (trackItem.relatedShiftRequests || []).filter(r => r.state === 'PENDING');
+      if (pendingList.length > 0) {
+        const pickupTitle = document.createElement('div');
+        pickupTitle.className = 'pickup-requests-title';
+        pickupTitle.innerText = `Pickup Requests (${pendingList.length})`;
+        card.appendChild(pickupTitle);
 
-  // Actions footer buttons populate
-  const actionsContainer = document.getElementById('shift-modal-actions');
-  actionsContainer.innerHTML = '';
+        const listContainer = document.createElement('div');
+        listContainer.className = 'pickup-requests-wrapper';
+        pendingList.forEach(r => {
+          const rowText = document.createElement('div');
+          const pName = getCoworkerNameResolved(r.requesterId);
+          rowText.innerText = `• ${pName} requested ${getTimeAgoText(r.requestedAt)}`;
+          listContainer.appendChild(rowText);
+        });
+        card.appendChild(listContainer);
+      }
+    }
+  }
 
-  const pickupRequestsRow = document.getElementById('shift-modal-pickup-requests-row');
-  pickupRequestsRow.classList.add('hidden');
+  // Location (Cafe Display Name)
+  const locEl = document.createElement('div');
+  locEl.className = 'shift-card-location';
+  locEl.innerText = getCafeDisplayName(displayShift.cafeNumber, state.cache.schedule?.cafeList);
+  card.appendChild(locEl);
+
+  // Actions (Footer buttons: Trade, Cover, Pickup, Post, etc.)
+  const actionsContainer = document.createElement('div');
+  actionsContainer.className = 'modal-actions-container';
 
   if (isAvailable) {
-    // 1. Available Shift options
-    const req = trackItem?.primaryShiftRequest;
-    
-    // Status text label update
-    if (req) {
-      const statusText = document.getElementById('shift-modal-note');
-      statusText.innerHTML = `Posted by ${req.requesterName || 'Coworker'} ${getTimeAgoText(req.requestedAt)}` + 
-                             (displayShift.managerNotes ? `<br/>Note: ${displayShift.managerNotes}` : '');
-      notesRow.classList.remove('hidden');
-    }
-
-    // Check if I have an active pickup request pending
-    const myId = state.user.userId;
-    const myRequest = trackItem?.relatedShiftRequests?.find(r => r.requesterId === myId && (r.state === 'PENDING' || r.state === 'APPROVED'));
+    const myRequest = resolvedTrackItem?.relatedShiftRequests?.find(r => r.requesterId === myId && (r.state === 'PENDING' || r.state === 'APPROVED'));
 
     if (myRequest) {
-      // Cancel pickup request option
       const cancelBtn = document.createElement('button');
       cancelBtn.className = 'btn warning-btn';
       cancelBtn.innerText = 'Cancel Pickup Request';
-      cancelBtn.onclick = () => cancelPickupRequest(myRequest.requestId, displayShift);
+      cancelBtn.onclick = () => {
+        closeModal('shift-detail-modal');
+        cancelPickupRequest(myRequest.requestId, displayShift);
+      };
       actionsContainer.appendChild(cancelBtn);
     } else {
-      // Request pickup option
       const pickupBtn = document.createElement('button');
-      pickupBtn.className = 'btn primary-btn';
-      pickupBtn.innerText = 'Pick Up Shift';
-      pickupBtn.onclick = () => requestShiftPickup(req.requestId, displayShift);
+      pickupBtn.className = 'btn success-btn';
+      pickupBtn.innerText = 'Pick Up';
+      pickupBtn.onclick = () => {
+        closeModal('shift-detail-modal');
+        requestShiftPickup(resolvedTrackItem?.primaryShiftRequest?.requestId, displayShift);
+      };
       actionsContainer.appendChild(pickupBtn);
     }
-
-    // Show coworkers attempting to pickup shifts if I am the poster
-    if (req && req.requesterId === myId) {
-      const listDiv = document.getElementById('shift-modal-pickup-requests-list');
-      listDiv.innerHTML = '';
-      
-      const pendingList = (trackItem?.relatedShiftRequests || []).filter(r => r.state === 'PENDING');
-      if (pendingList.length > 0) {
-        pickupRequestsRow.classList.remove('hidden');
-        pendingList.forEach(r => {
-          const rowText = document.createElement('div');
-          rowText.className = 'pickup-request-row-text';
-          const pName = getCoworkerNameResolved(r.requesterId);
-          rowText.innerText = `• ${pName} requested ${getTimeAgoText(r.requestedAt)}`;
-          listDiv.appendChild(rowText);
-        });
-      }
-    }
-
   } else {
-    // 2. Personal Shift options
-    const isMe = displayShift.employeeId === state.user.userId;
-    if (isMe) {
-      // Check if already posted on schedule board
-      const isPosted = cache?.track?.some(t => t.type === 'AVAILABLE' && t.primaryShiftRequest?.shift?.shiftId === displayShift.shiftId && t.primaryShiftRequest?.state !== 'CANCELLED');
-      const trackObj = cache?.track?.find(t => t.primaryShiftRequest?.shift?.shiftId === displayShift.shiftId);
+    const isFuture = new Date(displayShift.startDateTime) > new Date();
+    if (isFuture && displayShift.employeeId === state.user.userId) {
+      const latestActivePost = state.cache.schedule?.track?.filter(it => 
+        it.primaryShiftRequest?.shift?.shiftId?.toString() === displayShift.shiftId?.toString() &&
+        (it.primaryShiftRequest?.state === 'AVAILABLE' || it.primaryShiftRequest?.state === 'PENDING')
+      )?.sort((a,b) => (b.primaryShiftRequest?.requestedAt || '').localeCompare(a.primaryShiftRequest?.requestedAt || ''))?.[0];
 
-      if (isPosted) {
-        // Cancel post option
-        const cancelPostBtn = document.createElement('button');
-        cancelPostBtn.className = 'btn warning-btn';
-        cancelPostBtn.innerText = 'Cancel Shift Post';
-        cancelPostBtn.onclick = () => cancelShiftPost(trackObj.primaryShiftRequest.requestId, displayShift);
-        actionsContainer.appendChild(cancelPostBtn);
+      if (latestActivePost) {
+        const reqType = latestActivePost.type || latestActivePost.primaryShiftRequest?.type || 'POST';
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'btn warning-btn';
+        cancelBtn.innerText = reqType === 'TRADE' ? 'Cancel Trade' : (reqType === 'COVER' ? 'Cancel Cover' : 'Cancel Post');
+        cancelBtn.onclick = () => {
+          closeModal('shift-detail-modal');
+          cancelShiftPost(latestActivePost.primaryShiftRequest.requestId, displayShift);
+        };
+        actionsContainer.appendChild(cancelBtn);
       } else {
-        // Post options sub-menu buttons
         const postBtn = document.createElement('button');
-        postBtn.className = 'btn primary-btn';
+        postBtn.className = 'btn success-btn';
+        postBtn.style.width = '100%';
+        postBtn.style.marginBottom = '8px';
         postBtn.innerText = 'Post Shift for Pickup';
-        postBtn.onclick = () => postShiftForPickup(displayShift);
+        postBtn.onclick = () => {
+          closeModal('shift-detail-modal');
+          postShiftForPickup(displayShift);
+        };
         actionsContainer.appendChild(postBtn);
 
         const tradeBtn = document.createElement('button');
         tradeBtn.className = 'btn secondary-btn';
-        tradeBtn.innerText = 'Trade Shift with Coworker';
-        tradeBtn.onclick = () => startShiftTradeFlow(displayShift);
+        tradeBtn.style.width = '100%';
+        tradeBtn.style.marginBottom = '8px';
+        tradeBtn.innerText = 'Trade Shift';
+        tradeBtn.onclick = () => {
+          closeModal('shift-detail-modal');
+          startShiftTradeFlow(displayShift);
+        };
         actionsContainer.appendChild(tradeBtn);
 
         const coverBtn = document.createElement('button');
         coverBtn.className = 'btn secondary-btn';
-        coverBtn.innerText = 'Request Coworker to Cover';
-        coverBtn.onclick = () => startShiftCoverFlow(displayShift);
+        coverBtn.style.width = '100%';
+        coverBtn.innerText = 'Request Cover';
+        coverBtn.onclick = () => {
+          closeModal('shift-detail-modal');
+          startShiftCoverFlow(displayShift);
+        };
         actionsContainer.appendChild(coverBtn);
       }
     }
   }
+
+  if (actionsContainer.children.length > 0) {
+    card.appendChild(actionsContainer);
+  }
+
+  return card;
+}
+
+function showDayScheduleModal(date, shifts, avails) {
+  const modalBody = document.getElementById('shift-detail-modal-body');
+  modalBody.innerHTML = '';
+
+  // Header Title Date
+  document.getElementById('shift-modal-title').innerText = date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+  // 1. My Shifts
+  shifts.forEach(s => {
+    const card = createShiftCardElement(s, false, false);
+    modalBody.appendChild(card);
+  });
+
+  // Separator & 2. Available Shifts
+  if (shifts.length > 0 && avails.length > 0) {
+    const sep = document.createElement('div');
+    sep.className = 'shift-detail-card-separator';
+    sep.innerText = 'AVAILABLE SHIFTS';
+    modalBody.appendChild(sep);
+  }
+
+  avails.forEach(s => {
+    const trackItem = (state.cache.schedule?.track || []).find(t => 
+      t.type === 'AVAILABLE' && 
+      t.primaryShiftRequest?.shift?.shiftId?.toString() === s.shiftId?.toString()
+    );
+    const card = createShiftCardElement(s, true, false, trackItem);
+    modalBody.appendChild(card);
+  });
+
+  if (shifts.length === 0 && avails.length === 0) {
+    showToast('No shifts scheduled for this day');
+    return;
+  }
+
+  openModal('shift-detail-modal');
+}
+
+function openShiftDetails(shift, isAvailable, trackItem = null) {
+  const modalBody = document.getElementById('shift-detail-modal-body');
+  modalBody.innerHTML = '';
+
+  // Determine Title Name
+  let titleName = 'Shift Details';
+  let hideCoworkers = false;
+
+  if (isAvailable) {
+    titleName = 'Available Shift';
+  } else if (shift.employeeId && shift.employeeId !== state.user.userId) {
+    titleName = getCoworkerNameResolved(shift.employeeId);
+    hideCoworkers = true;
+  }
+
+  document.getElementById('shift-modal-title').innerText = titleName;
+
+  // Resolve Track Item if needed
+  let resolvedTrackItem = trackItem;
+  if (isAvailable && !resolvedTrackItem) {
+    resolvedTrackItem = (state.cache.schedule?.track || []).find(t => 
+      t.type === 'AVAILABLE' && 
+      t.primaryShiftRequest?.shift?.shiftId?.toString() === shift.shiftId?.toString()
+    );
+  }
+
+  const card = createShiftCardElement(shift, isAvailable, hideCoworkers, resolvedTrackItem);
+  modalBody.appendChild(card);
 
   openModal('shift-detail-modal');
 }

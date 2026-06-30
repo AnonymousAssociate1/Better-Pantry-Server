@@ -120,6 +120,12 @@
 
       <!-- ==================== TAB: HOME ==================== -->
       <section id="tab-home" class="tab-view active">
+        <!-- Home Cafe Switcher chip filter row -->
+        <div id="home-cafe-chip-group-scroll" class="chip-scroll-container hidden">
+          <div id="home-cafe-chip-group" class="chip-group">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
         <!-- Dynamic Calendar Grid Widget -->
         <div class="card calendar-card">
           <div id="calendar-date-range" class="calendar-range-title">Wednesday, Jun 17 - Tuesday, Jul 14</div>
@@ -483,63 +489,9 @@
         <h3 id="shift-modal-title">Shift Details</h3>
         <button class="close-modal-btn">&times;</button>
       </div>
-      <div class="modal-body">
-        <div class="card shift-detail-card">
-          <div class="shift-detail-row">
-            <span class="shift-detail-label">Position</span>
-            <span id="shift-modal-position" class="shift-detail-val font-bold">Line Production</span>
-          </div>
-          <div class="shift-detail-row">
-            <span class="shift-detail-label">Time & Date</span>
-            <span id="shift-modal-datetime" class="shift-detail-val">Wed 6/17 8:00AM - 4:00PM</span>
-          </div>
-          <div class="shift-detail-row">
-            <span class="shift-detail-label">Location</span>
-            <span id="shift-modal-location" class="shift-detail-val">Cafe #202924</span>
-          </div>
-          <div class="shift-detail-row" id="shift-modal-note-row">
-            <span class="shift-detail-label">Notes</span>
-            <span id="shift-modal-note" class="shift-detail-val italic">Manager notes go here...</span>
-          </div>
-          <div class="shift-detail-row" id="shift-modal-money-row">
-            <span class="shift-detail-label">Projected Earnings</span>
-            <span id="shift-modal-money" class="shift-detail-val green-text font-bold">$120.00</span>
-          </div>
-          <div id="shift-modal-pickup-requests-row" class="hidden">
-            <div class="shift-detail-label margin-bottom-5">Pickup Requests Status</div>
-            <div id="shift-modal-pickup-requests-list" class="pickup-requests-list">
-              <!-- Pending requests list -->
-            </div>
-          </div>
-        </div>
-
-        <!-- Mini horizontal timeline chart (replicates coworker schedule mini-chart) -->
-        <div id="shift-modal-coworkers-wrapper" class="hidden">
-          <div class="coworkers-header-row">
-            <h4>COWORKERS ON DUTY</h4>
-            <div class="action-row">
-              <button id="modal-share-chart-btn" class="text-action-btn flex-center">
-                <svg class="icon" viewBox="0 0 24 24"><path d="M18,16.08C17.24,16.08 16.56,16.38 16.04,16.85L8.91,12.7C8.96,12.47 9,12.24 9,12C9,11.76 8.96,11.53 8.91,11.3L15.96,7.19C16.5,7.69 17.21,8 18,8A3,3 0 0,0 21,5A3,3 0 0,0 18,2A3,3 0 0,0 15,5C15,5.24 15.04,5.47 15.09,5.7L8.04,9.81C7.5,9.31 6.79,9 6,9A3,3 0 0,0 3,12A3,3 0 0,0 6,15C6.79,15 7.5,14.69 8.04,14.19L15.16,18.34C15.11,18.55 15.08,18.77 15.08,19C15.08,20.61 16.39,21.91 18,21.91C19.61,21.91 20.91,20.61 20.91,19C20.91,17.39 19.61,16.08 18,16.08Z"/></svg>
-                Share
-              </button>
-              <button id="modal-expand-chart-btn" class="text-action-btn flex-center">
-                <svg class="icon" viewBox="0 0 24 24"><path d="M9.5,13.09L10.91,14.5L6.41,19H10V21H3V14H5V17.59L9.5,13.09M10.91,9.5L9.5,10.91L5,6.41V10H3V3H10V5H6.41L10.91,9.5M14.5,13.09L19,17.59V14H21V21H14V19H17.59L13.09,14.5L14.5,13.09M13.09,9.5L14.5,8.09L19,12.59V9H21V3H14V5H17.59L13.09,9.5Z"/></svg>
-                Expand
-              </button>
-            </div>
-          </div>
-          
-          <div class="coworkers-chart-scroll">
-            <div id="modal-coworkers-chart" class="coworkers-timeline-chart">
-              <!-- Inline timeline chart rendered by JS -->
-            </div>
-          </div>
-        </div>
-
-        <!-- Shift action buttons (Post, Pickup, Trade, Cover, Cancel buttons) -->
-        <div id="shift-modal-actions" class="modal-actions-container">
-          <!-- Dynamic buttons populated by JS -->
-        </div>
+      <div class="modal-body" id="shift-detail-modal-body">
+        <!-- Dynamically populated shift detail cards -->
+      </div>
       </div>
     </div>
   </div>
