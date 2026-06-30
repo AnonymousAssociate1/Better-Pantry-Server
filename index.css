@@ -9,15 +9,15 @@
   --time-off-yellow: #CFA855;
   --time-off-yellow-container: #F6ECD7;
   
-  --background: #F8F9FA;
+  --background: #FFFFFF;
   --card-background: #FFFFFF;
-  --text-primary: #1A1A1A;
-  --text-secondary: #70757A;
+  --text-primary: #000000;
+  --text-secondary: rgba(0, 0, 0, 0.54);
   --text-reverse: #FFFFFF;
   
-  --divider: #EAEAEA;
-  --calendar-border: #E8E8E8;
-  --schedule-back: #F1F3F4;
+  --divider: #E0E0E0;
+  --calendar-border: #E0E0E0;
+  --schedule-back: #F5F5F5;
   --accent-color: #6B8E6F;
   
   --red: #D32F2F;
@@ -28,22 +28,22 @@
   --blue-container: #E8F0FE;
 
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-top: env(safe-top, 0px);
 }
 
 /* Dark theme overrides (controlled by manual override class or prefers-color-scheme) */
 body.dark-theme {
   --background: #121212;
   --card-background: #1E1E1E;
-  --text-primary: #F1F1F1;
-  --text-secondary: #9AA0A6;
-  --text-reverse: #121212;
+  --text-primary: #FFFFFF;
+  --text-secondary: rgba(255, 255, 255, 0.7);
+  --text-reverse: #000000;
   
-  --divider: #2D2D2D;
-  --calendar-border: #2D2D2D;
-  --schedule-back: #121212;
+  --divider: #444444;
+  --calendar-border: #444444;
+  --schedule-back: #1E1E1E;
   
-  --primary-green-container: #233426;
+  --primary-green-container: #2D3B2D;
   --time-off-yellow-container: #3E311A;
   --red-container: #3C1E1E;
   --orange-container: #3D2612;
@@ -54,15 +54,15 @@ body.dark-theme {
   body:not(.light-theme) {
     --background: #121212;
     --card-background: #1E1E1E;
-    --text-primary: #F1F1F1;
-    --text-secondary: #9AA0A6;
-    --text-reverse: #121212;
+    --text-primary: #FFFFFF;
+    --text-secondary: rgba(255, 255, 255, 0.7);
+    --text-reverse: #000000;
     
-    --divider: #2D2D2D;
-    --calendar-border: #2D2D2D;
-    --schedule-back: #121212;
+    --divider: #444444;
+    --calendar-border: #444444;
+    --schedule-back: #1E1E1E;
     
-    --primary-green-container: #233426;
+    --primary-green-container: #2D3B2D;
     --time-off-yellow-container: #3E311A;
     --red-container: #3C1E1E;
     --orange-container: #3D2612;
