@@ -207,7 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
   } else if (!state.accessToken) {
     showAuthScreen();
   } else {
-    initApp(startTab, focusId);
+    initApp(startTab || 'home', focusId);
   }
 
   // Register service worker
@@ -385,7 +385,7 @@ function openTeamSchedule() {
   document.querySelectorAll('.tab-view').forEach(view => view.classList.add('hidden'));
   document.getElementById('sub-team-schedule').classList.remove('hidden');
   
-  document.getElementById('header-title').innerText = 'TEAM SCHEDULE';
+  document.getElementById('header-title').innerText = 'FULL SCHEDULE';
   document.getElementById('header-back-btn').classList.remove('hidden');
   document.getElementById('header-actions').innerHTML = '';
   
@@ -497,64 +497,95 @@ function setupSettingsHeaderActions() {
 }
 
 // ----------------------------------------------------
+// ----------------------------------------------------
+// LOADING SPINNER OVERLAY TRIGGERS
+// ----------------------------------------------------
+function showLoading(message = 'Refreshing schedule...') {
+  const overlay = document.getElementById('loading-overlay');
+  const text = document.getElementById('loading-message');
+  if (overlay && text) {
+    text.innerText = message;
+    overlay.classList.remove('hidden');
+  }
+}
+
+function hideLoading() {
+  const overlay = document.getElementById('loading-overlay');
+  if (overlay) {
+    overlay.classList.add('hidden');
+  }
+}
+
 // CORE API DATA FETCHER & CACHER
 // ----------------------------------------------------
 async function refreshData() {
   if (!state.accessToken) return;
   
-  console.log('Syncing data from Panera APIs...');
-  showToast('Refreshing schedule...');
+  console.log('Syncing all data from Panera APIs concurrently...');
+  showLoading('Refreshing schedule...');
   
   try {
-    // 1. Fetch personal schedule (30 days range)
-    const start = new Date().toISOString().split('T')[0];
-    const end = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const schedUrl = `https://pantry.panerabread.com/apis/selfservice-ui-service/v1/employees/${state.user.userId}/self_service?shiftStartDate=${start}&shiftEndDate=${end}`;
-    const schedule = await apiRequest(schedUrl);
-    
-    saveCache('schedule', schedule);
-    saveCache('lastUpdate', Date.now());
-    
-    // 2. Fetch notifications
-    const notifUrl = 'https://pantry.panerabread.com/apis/pantry-ui-service/notification/v1/api/notifications/pin-level-ordered?page=0&size=100&includeDeleted=true';
-    const notifResponse = await apiRequest(notifUrl);
-    
-    // Merge read status with client side overrides
-    const cachedNotifs = state.cache.notifiedIds;
-    const merged = (notifResponse.content || []).map(n => {
-      if (cachedNotifs.includes(n.notificationId)) {
-        return { ...n, read: true };
-      }
-      return n;
+    const response = await fetch(resolveServerUrl('/api/sync-all'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${state.accessToken}`
+      },
+      body: JSON.stringify({
+        userId: state.user.userId,
+        cafeNo: state.user.cafeNo,
+        enabledCafes: state.settings.enabledCafes,
+        personalRangeDays: 30,
+        coworkerRangeDays: 14
+      })
     });
+
+    if (!response.ok) {
+      throw new Error(`Sync-all returned HTTP status ${response.status}`);
+    }
+
+    const data = await response.json();
     
-    saveCache('notifiedIds', cachedNotifs);
-    saveCache('notifications', merged);
-    
-    // Update badge counter
-    updateNotificationBadge();
+    // 1. Process Schedule
+    if (data.schedule) {
+      saveCache('schedule', data.schedule);
+      saveCache('lastUpdate', Date.now());
+    }
 
-    // 3. Fetch availability details
-    try {
-      const avUrl = `https://pantry.panerabread.com/apis/selfservice-ui-service/v1/availability?employeeId=${state.user.userId}`;
-      const av = await apiRequest(avUrl);
-      saveCache('availability', av);
+    // 2. Process Notifications
+    if (data.notifications) {
+      const cachedNotifs = state.cache.notifiedIds || [];
+      const merged = (data.notifications.content || []).map(n => {
+        if (cachedNotifs.includes(n.notificationId)) {
+          return { ...n, read: true };
+        }
+        return n;
+      });
+      saveCache('notifiedIds', cachedNotifs);
+      saveCache('notifications', merged);
+      updateNotificationBadge();
+    }
 
-      const maxUrl = `https://pantry.panerabread.com/apis/selfservice-ui-service/v1/max-hours/all?paneraId=${state.user.userId}`;
-      const max = await apiRequest(maxUrl);
-      saveCache('maxHours', max);
+    // 3. Process Availability, Max Hours, Time Off
+    if (data.availability) saveCache('availability', data.availability);
+    if (data.maxHours) saveCache('maxHours', data.maxHours);
+    if (data.timeOff) saveCache('timeOff', data.timeOff);
 
-      const toUrl = `https://pantry.panerabread.com/apis/selfservice-ui-service/v1/franchise-request-time-off/all?paneraId=${state.user.userId}`;
-      const timeoff = await apiRequest(toUrl);
-      saveCache('timeOff', timeoff);
-    } catch(e) {
-      console.warn('Failed to load availability updates:', e);
+    // 4. Process Coworker Schedules
+    if (data.teamSchedule) {
+      saveCache('teamSchedule', data.teamSchedule);
+      saveCache('lastTeamUpdate', Date.now());
     }
 
     renderAllViews();
+    renderTeamScheduleView();
+    renderPeopleView();
+    
+    hideLoading();
     showToast('Schedule updated');
   } catch (err) {
-    console.error('Refresh error:', err);
+    console.error('Unified refresh error:', err);
+    hideLoading();
     showToast('Failed to sync. Using cached data.');
   }
 }
@@ -579,57 +610,8 @@ async function fetchNotificationsCount() {
 }
 
 async function fetchTeamSchedules() {
-  const schedule = state.cache.schedule;
-  if (!schedule) return;
-
-  const sampleShift = (schedule.currentShifts || []).find(s => s.cafeNumber && s.companyCode) || 
-                      (schedule.track || []).map(t => t.primaryShiftRequest?.shift).find(s => s?.cafeNumber);
-  
-  const companyCode = sampleShift?.companyCode || '101';
-  const homeCafe = state.user.cafeNo;
-  
-  // Determine enabled cafes list
-  let cafes = state.settings.enabledCafes;
-  if (cafes.length === 0) {
-    cafes = homeCafe ? [homeCafe] : (sampleShift?.cafeNumber ? [sampleShift.cafeNumber] : []);
-  }
-
-  if (cafes.length === 0) return;
-
-  // Determine query range (today to +14 days)
-  const start = new Date().toISOString().split('T')[0] + 'T00:00:00';
-  const end = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] + 'T23:59:59';
-
-  console.log('Prefetching coworker schedules for:', cafes);
-  let mergedTeamSchedule = state.cache.teamSchedule || [];
-
-  for (const cafeNo of cafes) {
-    try {
-      const url = `https://pantry.panerabread.com/apis/selfservice-ui-service/v1/trade/associates?cafeNo=${cafeNo}&companyCode=${companyCode}&employeeId=${state.user.userId}&startDate=${start}&endDate=${end}`;
-      const associates = await apiRequest(url);
-      
-      // Inject cafe number into shifts
-      const populated = (associates || []).map(member => {
-        const shifts = (member.shifts || []).map(s => ({ ...s, cafeNumber: cafeNo }));
-        return { ...member, shifts };
-      });
-
-      // Merge into local list
-      // Remove old records for this cafe first to avoid duplicates
-      mergedTeamSchedule = mergedTeamSchedule.filter(item => {
-        const match = item.associate?.cafeNumber === cafeNo || item.shifts?.some(s => s.cafeNumber === cafeNo);
-        return !match;
-      });
-      mergedTeamSchedule = mergedTeamSchedule.concat(populated);
-    } catch(e) {
-      console.error(`Failed to fetch schedules for cafe ${cafeNo}:`, e);
-    }
-  }
-
-  saveCache('teamSchedule', mergedTeamSchedule);
-  saveCache('lastTeamUpdate', Date.now());
-  renderTeamScheduleView();
-  renderPeopleView(); // refresh coworkers names
+  // Coworker schedules are now pulled automatically in the main refreshData sync-all call
+  await refreshData();
 }
 
 // ----------------------------------------------------

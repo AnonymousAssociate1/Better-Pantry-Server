@@ -1412,35 +1412,37 @@ body.dark-theme .timeline-lane-label {
   bottom: 0;
   left: 0;
   right: 0;
-  background-color: rgba(0,0,0,0.5);
+  background-color: rgba(0,0,0,0.55);
   display: flex;
-  align-items: flex-end;
+  align-items: center; /* Center-aligned dialogs */
   justify-content: center;
   z-index: 1000;
-  animation: fadeOverlay 0.25s ease-out;
+  animation: fadeOverlay 0.2s ease-out;
+  backdrop-filter: blur(2px);
+  padding: 16px;
 }
 
 @keyframes fadeOverlay {
   from { background-color: rgba(0,0,0,0); }
-  to { background-color: rgba(0,0,0,0.5); }
+  to { background-color: rgba(0,0,0,0.55); }
 }
 
 .modal-content {
-  width: 100%;
-  max-width: 500px;
+  width: calc(100% - 32px); /* Matches Android padding */
+  max-width: 460px;
   background-color: var(--card-background);
-  border-top-left-radius: 16px;
-  border-top-right-radius: 16px;
-  max-height: 85%;
+  border-radius: 16px; /* Rounded on all corners */
+  max-height: 90%;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
-  animation: slideUp 0.25s cubic-bezier(0.1, 0.76, 0.55, 0.94);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+  animation: scaleUp 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden;
 }
 
-@keyframes slideUp {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
+@keyframes scaleUp {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
 
 .modal-content.max-width-600 {
@@ -1751,3 +1753,60 @@ body.dark-theme .toast {
   border: none !important;
 }
 .bold { font-weight: 700; }
+
+/* ==========================================================================
+   LOADING OVERLAY SPINNER
+   ========================================================================== */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200; /* Higher than modal */
+  backdrop-filter: blur(2px);
+  animation: fadeOverlay 0.2s ease-out;
+}
+
+.loading-overlay.hidden {
+  display: none !important;
+}
+
+.loading-spinner-container {
+  background-color: var(--card-background);
+  padding: 24px 32px;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: 80%;
+  animation: scaleUp 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--divider);
+  border-top-color: var(--primary-green);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.loading-message {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
