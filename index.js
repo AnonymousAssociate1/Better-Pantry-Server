@@ -270,38 +270,46 @@ async function initApp(startTab = 'home', focusId = null) {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app-container').classList.remove('hidden');
 
-  // Load settings preferences views
-  document.getElementById('combine-shifts-switch').checked = state.settings.combineShifts;
-  document.getElementById('show-availability-calendar-switch').checked = state.settings.showAvailabilityOnCalendar;
-  document.getElementById('show-money-switch').checked = state.settings.showMoney;
-  document.getElementById('push-master-switch').checked = state.settings.pushEnabled;
-  document.getElementById('push-settings-panel').classList.toggle('hidden', !state.settings.pushEnabled);
-  document.getElementById('current-theme-label').innerText = 
-    state.settings.theme === 'system' ? 'System Default' : (state.settings.theme === 'light' ? 'Light Mode' : 'Dark Mode');
+  // Load settings preferences views inside try-catch to prevent DOM-mismatch crashes
+  try {
+    document.getElementById('combine-shifts-switch').checked = state.settings.combineShifts;
+    document.getElementById('show-availability-calendar-switch').checked = state.settings.showAvailabilityOnCalendar;
+    document.getElementById('show-money-switch').checked = state.settings.showMoney;
+    document.getElementById('push-master-switch').checked = state.settings.pushEnabled;
+    document.getElementById('push-settings-panel').classList.toggle('hidden', !state.settings.pushEnabled);
+    document.getElementById('current-theme-label').innerText = 
+      state.settings.theme === 'system' ? 'System Default' : (state.settings.theme === 'light' ? 'Light Mode' : 'Dark Mode');
 
-  // Load push notification toggles
-  document.getElementById('push-pickups-switch').checked = state.settings.pushSettings.shiftPickupsEnabled;
-  document.getElementById('push-approvals-switch').checked = state.settings.pushSettings.shiftApprovedEnabled;
-  document.getElementById('push-calls-switch').checked = state.settings.pushSettings.managerCallsEnabled;
-  document.getElementById('push-published-switch').checked = state.settings.pushSettings.schedulePublishedEnabled;
-  document.getElementById('push-other-switch').checked = state.settings.pushSettings.otherEnabled;
+    // Load push notification toggles
+    document.getElementById('push-pickups-switch').checked = state.settings.pushSettings.shiftPickupsEnabled;
+    document.getElementById('push-approvals-switch').checked = state.settings.pushSettings.shiftApprovedEnabled;
+    document.getElementById('push-calls-switch').checked = state.settings.pushSettings.managerCallsEnabled;
+    document.getElementById('push-published-switch').checked = state.settings.pushSettings.schedulePublishedEnabled;
+    document.getElementById('push-other-switch').checked = state.settings.pushSettings.otherEnabled;
+  } catch(e) {
+    console.error('Settings UI initialization warning:', e);
+  }
 
   // Render cached views immediately for instant load
-  renderAllViews();
+  try {
+    renderAllViews();
+  } catch(e) {
+    console.error('Initial rendering failed:', e);
+  }
 
-  // If token is expired, refresh first
+  // Navigate to start tab synchronously so user sees Home dashboard immediately
+  switchTab(startTab);
+  if (focusId) {
+    setTimeout(() => focusNotification(focusId), 500);
+  }
+
+  // If token is expired, refresh in background before syncing
   if (!isTokenValid()) {
     const refreshed = await performTokenRefresh();
     if (!refreshed) {
       logout();
       return;
     }
-  }
-
-  // Navigate to start tab
-  switchTab(startTab);
-  if (focusId) {
-    setTimeout(() => focusNotification(focusId), 500);
   }
 
   // Fetch fresh database items in background
