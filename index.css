@@ -113,29 +113,53 @@ html, body {
   background-color: var(--card-background);
   border-bottom: 1px solid var(--divider);
   display: flex;
+  flex-direction: column; /* Centered column layout */
   align-items: center;
-  justify-content: space-between;
-  padding-left: 16px;
-  padding-right: 16px;
+  justify-content: center;
   z-index: 100;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  padding-left: 56px; /* Avoid overlap with side buttons */
+  padding-right: 56px;
+  text-align: center;
+}
+
+#header-update-time {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  margin-bottom: 1px;
+  margin-top: -2px;
+}
+
+.header-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .header-left {
+  position: absolute;
+  left: 12px;
+  top: calc(50% + var(--safe-top) / 2);
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
-  gap: 12px;
 }
 
 .app-header h1 {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
-  letter-spacing: 0.5px;
-  color: var(--text-primary);
+  letter-spacing: 0.8px;
+  color: var(--primary-green); /* Sage green title like Android scheduled shifts */
   text-transform: uppercase;
 }
 
 .header-right {
+  position: absolute;
+  right: 12px;
+  top: calc(50% + var(--safe-top) / 2);
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
   gap: 8px;

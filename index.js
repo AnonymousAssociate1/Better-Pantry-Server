@@ -334,6 +334,20 @@ async function initApp(startTab = 'home', focusId = null) {
 // ----------------------------------------------------
 // UI NAVIGATION ROUTING
 // ----------------------------------------------------
+function updateHeaderTimestamp(timestamp = null) {
+  const el = document.getElementById('header-update-time');
+  if (!el) return;
+  
+  const timeToUse = timestamp || state.cache.lastUpdate;
+  if (timeToUse > 0) {
+    el.innerText = getLastUpdateText(timeToUse);
+    el.classList.remove('hidden');
+  } else {
+    el.innerText = 'Updated --';
+    el.classList.remove('hidden');
+  }
+}
+
 function switchTab(tabId) {
   // Navigation item active state
   document.querySelectorAll('.nav-item').forEach(item => {
@@ -352,20 +366,24 @@ function switchTab(tabId) {
 
   if (tabId === 'home') {
     document.getElementById('tab-home').classList.remove('hidden');
-    document.getElementById('header-title').innerText = 'HOME';
+    document.getElementById('header-title').innerText = 'SCHEDULED SHIFTS';
     setupHomeHeaderActions();
+    updateHeaderTimestamp(state.cache.lastUpdate);
   } else if (tabId === 'people') {
     document.getElementById('tab-people').classList.remove('hidden');
-    document.getElementById('header-title').innerText = 'PEOPLE';
+    document.getElementById('header-title').innerText = 'COWORKERS';
     setupPeopleHeaderActions();
+    updateHeaderTimestamp(state.cache.lastTeamUpdate || state.cache.lastUpdate);
   } else if (tabId === 'notifications') {
     document.getElementById('tab-notifications').classList.remove('hidden');
     document.getElementById('header-title').innerText = 'NOTIFICATIONS';
     setupNotificationsHeaderActions();
+    updateHeaderTimestamp(state.cache.lastUpdate);
   } else if (tabId === 'settings') {
     document.getElementById('tab-settings').classList.remove('hidden');
     document.getElementById('header-title').innerText = 'SETTINGS';
     setupSettingsHeaderActions();
+    document.getElementById('header-update-time').classList.add('hidden'); // Hide on settings
   }
   
   state.currentTab = tabId;
@@ -380,6 +398,7 @@ function openPeerSchedule(associate) {
   document.getElementById('header-title').innerText = resolveCoworkerName(associate.employeeId, associate.firstName, associate.lastName).toUpperCase();
   document.getElementById('header-back-btn').classList.remove('hidden');
   document.getElementById('header-actions').innerHTML = ''; // no actions
+  document.getElementById('header-update-time').classList.add('hidden'); // Hide on peer profile
   
   // Fill profile details
   document.getElementById('peer-avatar-large').innerText = (associate.preferredName || associate.firstName || 'C').substring(0,2);
@@ -396,6 +415,7 @@ function openTeamSchedule() {
   document.getElementById('header-title').innerText = 'FULL SCHEDULE';
   document.getElementById('header-back-btn').classList.remove('hidden');
   document.getElementById('header-actions').innerHTML = '';
+  updateHeaderTimestamp(state.cache.lastTeamUpdate || state.cache.lastUpdate);
   
   renderTeamScheduleView();
   fetchTeamSchedules(); // fetch latest coworker schedules
@@ -407,6 +427,7 @@ function openAvailabilityView() {
   
   document.getElementById('header-title').innerText = 'AVAILABILITY';
   document.getElementById('header-back-btn').classList.remove('hidden');
+  updateHeaderTimestamp(state.cache.lastUpdate);
   
   // Header action: edit availability
   const editBtn = document.createElement('button');
@@ -630,10 +651,15 @@ function renderHomeView() {
   
   // Render timestamp
   const updatedText = document.getElementById('home-update-time');
-  if (state.cache.lastUpdate > 0) {
-    updatedText.innerText = getLastUpdateText(state.cache.lastUpdate);
-  } else {
-    updatedText.innerText = 'Updated --';
+  if (updatedText) {
+    if (state.cache.lastUpdate > 0) {
+      updatedText.innerText = getLastUpdateText(state.cache.lastUpdate);
+    } else {
+      updatedText.innerText = 'Updated --';
+    }
+  }
+  if (state.currentTab === 'home') {
+    updateHeaderTimestamp(state.cache.lastUpdate);
   }
 
   // 1. Calculate 28-day calendar starting previous Wednesday
@@ -948,10 +974,15 @@ function renderPeopleView() {
 
   // Update timestamps
   const updatedText = document.getElementById('people-update-time');
-  if (state.cache.lastTeamUpdate > 0) {
-    updatedText.innerText = getLastUpdateText(state.cache.lastTeamUpdate);
-  } else {
-    updatedText.innerText = 'Updated --';
+  if (updatedText) {
+    if (state.cache.lastTeamUpdate > 0) {
+      updatedText.innerText = getLastUpdateText(state.cache.lastTeamUpdate);
+    } else {
+      updatedText.innerText = 'Updated --';
+    }
+  }
+  if (state.currentTab === 'people') {
+    updateHeaderTimestamp(state.cache.lastTeamUpdate || state.cache.lastUpdate);
   }
 }
 
@@ -1281,10 +1312,15 @@ function renderTeamScheduleView() {
   
   // Timestamp updates
   const updatedText = document.getElementById('schedule-update-time');
-  if (state.cache.lastTeamUpdate > 0) {
-    updatedText.innerText = getLastUpdateText(state.cache.lastTeamUpdate);
-  } else {
-    updatedText.innerText = 'Updated --';
+  if (updatedText) {
+    if (state.cache.lastTeamUpdate > 0) {
+      updatedText.innerText = getLastUpdateText(state.cache.lastTeamUpdate);
+    } else {
+      updatedText.innerText = 'Updated --';
+    }
+  }
+  if (state.currentTab === 'team-schedule') {
+    updateHeaderTimestamp(state.cache.lastTeamUpdate || state.cache.lastUpdate);
   }
 }
 
